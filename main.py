@@ -15,23 +15,18 @@ logging.basicConfig(
 logger = logging.getLogger("log")
 logger.setLevel(LOG_LEVEL)
 
-SECRETS_FILE = "secrets.yaml"
-with open(SECRETS_FILE) as f:
-    secrets_data = yaml.load(f, Loader=yaml.FullLoader)
+NEXTCLOUD_USERNAME = os.getenv("NEXTCLOUD_USERNAME")
+NEXTCLOUD_PASSWORD = os.getenv("NEXTCLOUD_PASSWORD")
+NEXTCLOUD_HOSTNAME = "https://" + os.getenv("NEXTCLOUD_HOSTNAME")
 
-USERNAME = secrets_data.get("NEXTCLOUD_USERNAME")
-PASSWORD = secrets_data.get("NEXTCLOUD_PASSWORD")
-NEXTCLOUD_URL = "https://"+secrets_data.get("NEXTCLOUD_HOSTNAME")
-AUTOMATION_BOARD_NAME = "Automation"
-
-auth = (USERNAME, PASSWORD)
+auth = (NEXTCLOUD_USERNAME, NEXTCLOUD_PASSWORD)
 
 headers = {"Content-Type": "application/json", "OCS-APIRequest": "true"}
 
 def getBoards():
     logger.debug("getBoards()")
     response = requests.get(
-            f"{NEXTCLOUD_URL}/index.php/apps/deck/api/v1.0/boards",
+            f"{NEXTCLOUD_HOSTNAME}/index.php/apps/deck/api/v1.0/boards",
             auth = auth,
             headers=headers)
     response.raise_for_status()
@@ -40,7 +35,7 @@ def getBoards():
 def getLists(boardId):
     logger.debug("getLists()")
     response = requests.get(
-            f"{NEXTCLOUD_URL}/index.php/apps/deck/api/v1.0/boards/{boardId}/stacks",
+            f"{NEXTCLOUD_HOSTNAME}/index.php/apps/deck/api/v1.0/boards/{boardId}/stacks",
             auth=auth,
             headers=headers)
     response.raise_for_status()
