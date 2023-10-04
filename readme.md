@@ -1,7 +1,7 @@
 
 # Features
 - [ ] read-only features
-  - [ ] count tasks per list per board
+  - [x] count tasks per list per board
   - [ ] board meta data prometheus exporter
 - [ ] write-only features
   - [ ] cron based task creation
