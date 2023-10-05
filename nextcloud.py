@@ -23,8 +23,8 @@ auth = (NEXTCLOUD_USERNAME, NEXTCLOUD_PASSWORD)
 
 headers = {"Content-Type": "application/json", "OCS-APIRequest": "true"}
 
-def getBoards():
-    logger.debug("getBoards()")
+def _get_boards():
+    logger.debug("_get_boards()")
     response = requests.get(
             f"{NEXTCLOUD_HOSTNAME}/index.php/apps/deck/api/v1.0/boards",
             auth = auth,
@@ -32,8 +32,8 @@ def getBoards():
     response.raise_for_status()
     return response.json()
 
-def getLists(boardId):
-    logger.debug("getLists()")
+def _get_lists(boardId):
+    logger.debug("_get_lists()")
     response = requests.get(
             f"{NEXTCLOUD_HOSTNAME}/index.php/apps/deck/api/v1.0/boards/{boardId}/stacks",
             auth=auth,
@@ -41,9 +41,8 @@ def getLists(boardId):
     response.raise_for_status()
     return response.json()
 
-def fetchBoardsInfo():
-    # fetch boards
-    boards = getBoards()
+def fetch_boards_info():
+    boards = _get_boards()
     results_boards = []
     board_id = None
     automation_board = None
@@ -59,7 +58,7 @@ def fetchBoardsInfo():
         if board_id == None:
             logger.error("board has no id")
         logger.debug("- %s", board_title)
-        board_lists = getLists(board_id)
+        board_lists = _get_lists(board_id)
         total_lists += len(board_lists)
         new_board_lists_item = []
         for board_list in board_lists:
@@ -73,7 +72,7 @@ def fetchBoardsInfo():
             if list_cards == None:
                 logger.debug("list is empty")
                 list_cards = []
-            new_board_lists_item += {"name": list_title, "number_of_cards": len(list_cards)}
+            new_board_lists_item.append({"name": list_title, "number_of_cards": len(list_cards)})
             logger.debug("List '%s' has %i cards", list_title, len(list_cards))
             total_board_cards += len(list_cards)
             total_cards += len(list_cards)
