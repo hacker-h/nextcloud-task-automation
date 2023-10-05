@@ -1,8 +1,31 @@
+# Nextcloud Task Automation
+
+This is a small python webserver running queries against your nextcloud instance, specifically Nextcloud Deck.
+
+# Getting started
+```
+# if you want to use a virtualenv
+virtualenv -p python3 ~/.venv/nextcloud-task-automation
+source ~/.venv/nextcloud-task-automation/bin/activate
+
+# install dependencies
+pip install -r requirements.txt
+
+# prepare your .env file suitably
+set -a
+source .env
+
+# launch the webserver
+python main.py
+
+# check your exported metrics
+curl localhost:8000
+```
 
 # Features
-- [ ] read-only features
+- [x] read-only features
   - [x] count tasks per list per board
-  - [ ] board meta data prometheus exporter
+  - [x] board meta data prometheus exporter
 - [ ] write-only features
   - [ ] cron based task creation
   - [ ] rule based task creation
@@ -13,7 +36,7 @@
   - [ ] rule based task updates
 
 
-# Usecases
+# Potential Usecases
 - automatic recreation of recurring tasks
 - update broken links within tasks
 - show old tasks
