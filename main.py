@@ -15,6 +15,9 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 # Default port 8000 is configurable
 HTTP_PORT = int(os.getenv("HTTP_PORT", "8000"))
 
+# Default data fetch delay is configurable
+DATA_FETCH_DELAY = int(os.getenv("DATA_FETCH_DELAY", "60"))
+
 # setup logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.ERROR
@@ -69,7 +72,7 @@ def update_metrics():
         # Print the number of updated metrics
         logger.info(f"Updated {len(metrics_by_name)} metrics")
 
-        time.sleep(5)
+        time.sleep(DATA_FETCH_DELAY)
 
 # Function to format a string to a valid metric name
 def format_to_valid_metric_name(input_string):
