@@ -1,77 +1,108 @@
-import datetime
-import os
-import requests
-import re
-import yaml
-from pprint import pprint
 import logging
+import os
+import threading
+import time
+import random
+import re
 
+from prometheus_client import start_wsgi_server, CollectorRegistry, Gauge
+
+import nextcloud
+
+# Logging level is configurable
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+
+# Default port 8000 is configurable
+HTTP_PORT = int(os.getenv("HTTP_PORT", "8000"))
 
 # setup logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.ERROR
 )
-logger = logging.getLogger("log")
+logger = logging.getLogger("main")
 logger.setLevel(LOG_LEVEL)
 
-NEXTCLOUD_USERNAME = os.getenv("NEXTCLOUD_USERNAME")
-NEXTCLOUD_PASSWORD = os.getenv("NEXTCLOUD_PASSWORD")
-NEXTCLOUD_HOSTNAME = "https://" + os.getenv("NEXTCLOUD_HOSTNAME")
+# Store all metric objects by their name for dynamic metric management
+metrics_by_name = {}
 
-auth = (NEXTCLOUD_USERNAME, NEXTCLOUD_PASSWORD)
+# Function to export or create a metric with the given name and value
+def export_metric(raw_metric_name: str, metric_value: int):
+    metric_name = format_to_valid_metric_name(raw_metric_name)
 
-headers = {"Content-Type": "application/json", "OCS-APIRequest": "true"}
+    if metric_name not in metrics_by_name:
+        # Create a new metric if it doesn't exist yet
+        metric = Gauge(metric_name, "Metric fetched by nextcloud-task-automation", registry=custom_registry)
+        metrics_by_name[metric_name] = metric
 
-def getBoards():
-    logger.debug("getBoards()")
-    response = requests.get(
-            f"{NEXTCLOUD_HOSTNAME}/index.php/apps/deck/api/v1.0/boards",
-            auth = auth,
-            headers=headers)
-    response.raise_for_status()
-    return response.json()
+    # Set the metric value
+    metrics_by_name[metric_name].set(metric_value)
 
-def getLists(boardId):
-    logger.debug("getLists()")
-    response = requests.get(
-            f"{NEXTCLOUD_HOSTNAME}/index.php/apps/deck/api/v1.0/boards/{boardId}/stacks",
-            auth=auth,
-            headers=headers)
-    response.raise_for_status()
-    return response.json()
+# Function to periodically update the metrics
+def update_metrics():
+    while True:
+        # Fetch board information from Nextcloud
+        boards = nextcloud.fetch_boards_info()
 
-# fetch boards
-boards = getBoards()
-board_id = None
-automation_board = None
-total_boards = len(boards)
-total_lists = 0
-total_cards = 0
-for board in boards:
-    total_board_cards = 0
-    board_title = board.get("title")
-    if board_title == None:
-        logger.error("board has no title")
-    board_id = board.get("id")
-    if board_id == None:
-        logger.error("board has no id")
-    logger.info("- %s", board_title)
-    board_lists = getLists(board_id)
-    total_lists += len(board_lists)
-    for board_list in board_lists:
-        list_title = board_list.get("title")
-        if list_title == None:
-            logger.error("list has no title")
-        list_id = board_list.get("id")
-        if list_id == None:
-            logger.error("list has no id")
-        list_cards = board_list.get("cards")
-        if list_cards == None:
-            logger.debug("list is empty")
-            list_cards = []
-        logger.info("List '%s' has %i cards", list_title, len(list_cards))
-        total_board_cards += len(list_cards)
-        total_cards += len(list_cards)
-    logger.info("Board '%s' has %i lists and %i cards in total", board_title, len(board_lists), total_board_cards)
-logger.info("Found %i boards with %i lists and %i cards", len(boards), total_lists, total_cards)
+        # export total number of boards
+        boards_total = len(boards)
+        export_metric("boards_total", boards_total)
+
+        for board in boards:
+            board_name = board["name"]
+
+            # Export the total number of lists and cards for each board
+            board_lists_total = board["number_of_lists"]
+            export_metric(f"board_{board_name}_lists_total", board_lists_total)
+
+            board_cards_total = board["number_of_cards"]
+            export_metric(f"board_{board_name}_cards_total", board_cards_total)
+
+            board_lists = board["lists"]
+
+            for list_item in board_lists:
+                list_name = list_item["name"]
+
+                # Export the total number of cards for each list within a board
+                list_cards_total = list_item["number_of_cards"]
+                export_metric(f"board_{board_name}_list_{list_name}_cards_total", list_cards_total)
+
+        # Print the number of updated metrics
+        logger.info(f"Updated {len(metrics_by_name)} metrics")
+
+        time.sleep(5)
+
+# Function to format a string to a valid metric name
+def format_to_valid_metric_name(input_string):
+    # Replace any characters that are not valid in a metric name with underscores
+    sanitized_string = re.sub(r'[^a-zA-Z0-9:_]', '_', input_string)
+
+    # Ensure the metric name starts with a letter
+    if not sanitized_string[0].isalpha():
+        sanitized_string = '_' + sanitized_string
+
+    # Ensure the metric name is not empty and is not longer than 255 characters
+    if not sanitized_string or len(sanitized_string) > 255:
+        raise ValueError("Invalid metric name")
+
+    return sanitized_string
+
+if __name__ == '__main__':
+    # Create a custom Prometheus registry
+    custom_registry = CollectorRegistry()
+
+    logger.info(f"Launching HTTP server on port {HTTP_PORT}")
+
+    # Start the Prometheus WSGI server on the specified HTTP_PORT with the custom registry
+    start_wsgi_server(HTTP_PORT, addr='0.0.0.0', registry=custom_registry)
+
+    # Start a thread to periodically update the metrics
+    update_thread = threading.Thread(target=update_metrics)
+    update_thread.daemon = True
+    update_thread.start()
+
+    try:
+        while True:
+            # Keep the main thread alive
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
