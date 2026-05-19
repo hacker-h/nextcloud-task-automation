@@ -1,8 +1,37 @@
 # Nextcloud Task Automation
 
-This is a small python webserver running queries against your nextcloud instance, specifically Nextcloud Deck.
+Small Python automation runner for Nextcloud Deck tasks.
+
+This repo intentionally does not implement Deck API calls directly. It invokes
+[`nextcloud-deck-cli`](https://github.com/hacker-h/nextcloud-deck-cli) and stays
+focused on automation loops, scheduling, metrics, and task rules.
 
 # Getting started
+
+Install or build `nextcloud-deck-cli` first. The automation service expects a
+`deck` executable on `PATH`, or a custom path in `NEXTCLOUD_DECK_CLI`.
+
+From a sibling checkout:
+
+```bash
+cd /Users/hacker/src/github.com/hacker-h/nextcloud-deck-cli
+go build -o deck ./cmd/deck
+export NEXTCLOUD_DECK_CLI="$PWD/deck"
+```
+
+Environment:
+
+```bash
+export NEXTCLOUD_BASE_URL="https://nextcloud.example.com"
+export NEXTCLOUD_USERNAME="my-service-user-name"
+export NEXTCLOUD_APP_PASSWORD="my-service-user-app-password"
+export NEXTCLOUD_DECK_CLI="deck"
+```
+
+`NEXTCLOUD_PASSWORD` is also supported by `nextcloud-deck-cli`.
+`NEXTCLOUD_HOSTNAME` remains supported for older deployments; new config should
+use `NEXTCLOUD_BASE_URL`.
+
 ```
 # if you want to use a virtualenv
 virtualenv -p python3 ~/.venv/nextcloud-task-automation
@@ -21,6 +50,25 @@ python main.py
 # check your exported metrics
 curl localhost:8000
 ```
+
+# Design
+
+`main.py` owns the long-running loop and Prometheus exporter.
+
+`nextcloud.py` is a thin CLI client wrapper. It shells out to:
+
+```bash
+deck board list --json
+deck list list --board <id> --json
+```
+
+Future automations should add small intent-level functions to `nextcloud.py`
+that invoke `deck` commands, instead of adding direct HTTP calls here. Examples:
+
+- recurring-task creation: `deck card create`
+- task movement: `deck card move`
+- description updates: `deck card describe`
+- checklist updates: `deck todo add|check|uncheck`
 
 # Features
 - [x] read-only features

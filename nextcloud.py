@@ -1,6 +1,7 @@
 import os
-import requests
 import logging
+import json
+import subprocess
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
@@ -10,37 +11,53 @@ logging.basicConfig(
 )
 logger = logging.getLogger("nextcloud")
 
-NEXTCLOUD_USERNAME = os.getenv("NEXTCLOUD_USERNAME")
-NEXTCLOUD_PASSWORD = os.getenv("NEXTCLOUD_PASSWORD")
-NEXTCLOUD_HOSTNAME = "https://" + os.getenv("NEXTCLOUD_HOSTNAME")
+DECK_CLI = os.getenv("NEXTCLOUD_DECK_CLI", "deck")
 
-auth = (NEXTCLOUD_USERNAME, NEXTCLOUD_PASSWORD)
 
-headers = {"Content-Type": "application/json", "OCS-APIRequest": "true"}
+def _deck_env():
+    """
+    Builds the environment expected by nextcloud-deck-cli.
+
+    NEXTCLOUD_HOSTNAME is kept for compatibility with older deployments of this
+    automation service. Prefer NEXTCLOUD_BASE_URL for new deployments.
+    """
+    env = os.environ.copy()
+    if not env.get("NEXTCLOUD_BASE_URL") and env.get("NEXTCLOUD_HOSTNAME"):
+        hostname = env["NEXTCLOUD_HOSTNAME"].strip()
+        if not hostname.startswith(("http://", "https://")):
+            hostname = "https://" + hostname
+        env["NEXTCLOUD_BASE_URL"] = hostname
+    return env
+
+
+def _deck_json(*args):
+    """
+    Invokes nextcloud-deck-cli and returns JSON output.
+    """
+    command = [DECK_CLI, *args, "--json"]
+    logger.debug("Running deck CLI command: %s", command)
+    result = subprocess.run(
+        command,
+        check=True,
+        env=_deck_env(),
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(result.stdout)
+
 
 def _get_boards():
     """
-    Fetches and returns boards from Nextcloud Deck API.
+    Fetches and returns boards via nextcloud-deck-cli.
     """
-    response = requests.get(
-        f"{NEXTCLOUD_HOSTNAME}/index.php/apps/deck/api/v1.0/boards",
-        auth=auth,
-        headers=headers,
-    )
-    response.raise_for_status()
-    return response.json()
+    return _deck_json("board", "list")
 
-def _get_lists(boardId):
+
+def _get_lists(board_id):
     """
-    Fetches and returns lists for a given board ID from Nextcloud Deck API.
+    Fetches and returns lists for a given board ID via nextcloud-deck-cli.
     """
-    response = requests.get(
-        f"{NEXTCLOUD_HOSTNAME}/index.php/apps/deck/api/v1.0/boards/{boardId}/stacks",
-        auth=auth,
-        headers=headers,
-    )
-    response.raise_for_status()
-    return response.json()
+    return _deck_json("list", "list", "--board", str(board_id))
 
 def _fetch_board_info(board):
     """
